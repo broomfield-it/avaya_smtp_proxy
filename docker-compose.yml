@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # Redis - Message broker and result backend
+  redis:
+    image: redis:latest
+    container_name: voicemail-proxy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - voicemail-network
+
+  # SMTP Proxy Server
+  smtp-proxy:
+    build: .
+    container_name: voicemail-proxy-smtp
+    ports:
+      - "${SMTP_PORT:-1025}:1025"
+      - "${HEALTH_PORT:-8000}:8000"
+    environment:
+      # SMTP Configuration
+      - SMTP_HOST=0.0.0.0
+      - SMTP_PORT=1025
+      - SMTP_AUTH_REQUIRED=${SMTP_AUTH_REQUIRED:-false}
+      
+      # Outbound SMTP (required)
+      - OUTBOUND_SMTP_HOST=${OUTBOUND_SMTP_HOST}
+      - OUTBOUND_SMTP_PORT=${OUTBOUND_SMTP_PORT:-587}
+      - OUTBOUND_SMTP_USER=${OUTBOUND_SMTP_USER}
+      - OUTBOUND_SMTP_PASSWORD=${OUTBOUND_SMTP_PASSWORD}
+      - OUTBOUND_SMTP_USE_TLS=${OUTBOUND_SMTP_USE_TLS:-true}
+      
+      # Google Cloud (required for transcription)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_LANGUAGE_CODE=${GOOGLE_LANGUAGE_CODE:-en-US}
+      
+      # Celery/Redis
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      
+      # Storage
+      - STORAGE_PATH=/app/storage
+      - STORAGE_CLEANUP_AFTER_HOURS=${STORAGE_CLEANUP_AFTER_HOURS:-24}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python health_server.py &
+             python main.py"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health/ready', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - voicemail-network
+
+  # Celery Worker
+  celery-worker:
+    build: .
+    container_name: voicemail-proxy-worker
+    environment:
+      # Same environment as smtp-proxy
+      - OUTBOUND_SMTP_HOST=${OUTBOUND_SMTP_HOST}
+      - OUTBOUND_SMTP_PORT=${OUTBOUND_SMTP_PORT:-587}
+      - OUTBOUND_SMTP_USER=${OUTBOUND_SMTP_USER}
+      - OUTBOUND_SMTP_PASSWORD=${OUTBOUND_SMTP_PASSWORD}
+      - OUTBOUND_SMTP_USE_TLS=${OUTBOUND_SMTP_USE_TLS:-true}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+      - GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID}
+      - GOOGLE_LANGUAGE_CODE=${GOOGLE_LANGUAGE_CODE:-en-US}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_WORKER_CONCURRENCY=${CELERY_WORKER_CONCURRENCY:-4}
+      - STORAGE_PATH=/app/storage
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A app.tasks.worker worker
+      --loglevel=INFO
+      --queues=voicemail_processing,transcription,cleanup
+      --hostname=worker@%h
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.tasks.worker", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voicemail-network
+
+  # Flower - Celery monitoring (optional)
+  flower:
+    build: .
+    container_name: voicemail-proxy-flower
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH:-admin:admin}
+    depends_on:
+      - redis
+      - celery-worker
+    command: >
+      celery -A app.tasks.worker flower
+      --port=5555
+      --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}
+    profiles:
+      - monitoring
+    networks:
+      - voicemail-network
+
+volumes:
+  redis_data:
+    driver: local
+  # voicemail_storage:
+  #   driver: local
+  # voicemail_logs:
+  #   driver: local
+
+networks:
+  voicemail-network:
+    driver: bridge

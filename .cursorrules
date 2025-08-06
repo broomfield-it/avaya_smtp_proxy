@@ -1,0 +1,240 @@
+# SMTP Voicemail Proxy Development Rules
+
+## Project Context
+You are working on an SMTP proxy service that:
+- Intercepts Avaya voicemail emails with WAV attachments
+- Transcribes audio using Google Speech-to-Text API
+- Enhances emails with transcriptions and forwards them
+- Uses async Python, Celery, Redis, and Docker
+
+## Code Style & Architecture
+
+### Python Standards
+- Use Python 3.12+ features and type hints everywhere
+- Follow async/await patterns consistently
+- Use pydantic for data validation and settings management
+- Implement proper error handling with custom exceptions
+- Use structured logging with correlation IDs
+- Follow dependency injection patterns for testability
+
+### Pydantic v2 Patterns (CRITICAL)
+- Always use `from pydantic_settings import BaseSettings` (not from pydantic)
+- Use `model_config = {"extra": "ignore"}` in all BaseSettings classes
+- Use `@field_validator("field", mode="before")` with `@classmethod` decorator
+- Replace old `Config` class with `model_config` dict
+- Use `json_schema_extra` instead of `schema_extra`
+
+### Import Organization
+```python
+# Standard library
+import asyncio
+from typing import Optional, Dict, Any
+
+# Third-party
+import aiosmtpd
+from celery import Celery
+from google.cloud import speech
+from pydantic_settings import BaseSettings  # CRITICAL: Use pydantic-settings
+
+# Local imports
+from app.models import VoicemailMessage
+from app.services import TranscriptionService
+```
+
+### Error Handling Patterns
+- Always use custom exception classes
+- Include correlation IDs in all error messages
+- Log errors with appropriate context
+- Implement circuit breaker patterns for external APIs
+- Use proper retry logic with exponential backoff
+
+### Configuration Management
+- Use pydantic BaseSettings for all configuration
+- Environment variables should have clear naming: `SMTP_*`, `GOOGLE_*`, `CELERY_*`
+- Provide sensible defaults where possible
+- Validate all configuration at startup
+
+## Docker & Deployment Patterns
+
+### Container Best Practices
+- Use multi-stage builds to minimize image size
+- Run as non-root user
+- Include health checks in all services
+- Use BuildKit features for better caching
+- Pin all dependency versions
+
+### Docker Compose Structure
+- Separate services for SMTP receiver and Celery workers
+- Use proper networks and secrets management
+- Include development overrides
+- Add monitoring services (Flower, Redis Insight)
+
+## Testing Approach
+
+### Test Structure
+```python
+tests/
+├── unit/           # Fast, isolated tests
+├── integration/    # Service integration tests
+├── fixtures/       # Sample Avaya emails, WAV files
+└── conftest.py     # Pytest configuration
+```
+
+### Test Patterns
+- Use pytest with async support
+- Mock external services (Google API, SMTP servers)
+- Create realistic test fixtures for Avaya emails
+- Test error conditions and edge cases
+- Use factory patterns for test data generation
+
+## Celery Task Patterns
+
+### Task Implementation
+- Always use `bind=True` for task retry capabilities
+- Include proper error handling and logging
+- Use task IDs for correlation tracking
+- Implement idempotent operations
+- Set appropriate task timeouts
+
+### Queue Management
+- Use separate queues for different priorities
+- Configure dead letter queues for failed tasks
+- Monitor queue depths
+- Implement graceful shutdown handling
+
+## Google Cloud Integration
+
+### API Usage
+- Use service account authentication
+- Implement proper credential rotation
+- Add circuit breakers for API calls
+- Cache results when appropriate
+- Handle quota limits gracefully
+
+### Audio Processing
+- Validate audio format before sending to Google
+- Handle large file chunking if needed
+- Implement fallback for transcription failures
+- Log transcription confidence scores
+
+## File Management
+
+### Storage Patterns
+- Use atomic file operations
+- Implement proper cleanup mechanisms
+- Handle disk space monitoring
+- Use correlation IDs in file naming
+- Ensure thread-safe file operations
+
+## Monitoring & Observability
+
+### Logging Standards
+- Use structured JSON logging
+- Include correlation IDs in all log entries
+- Log at appropriate levels (DEBUG, INFO, WARNING, ERROR)
+- Include timing information for operations
+- Never log sensitive data (credentials, email content)
+- CRITICAL: Never use keyword arguments in logger calls like `logger.info("msg", key=value)`
+- Use string formatting: `logger.info(f"msg with {value}")` or `extra` parameter
+
+### Metrics to Track
+- SMTP connection counts and duration
+- Queue depths and processing times
+- Google API response times and errors
+- Email processing success/failure rates
+- File system usage
+
+## Security Considerations
+
+### Data Handling
+- Never log email contents or audio data
+- Secure temporary file handling
+- Validate all input data
+- Use proper secret management
+- Implement rate limiting
+
+### API Security
+- Validate SSL certificates
+- Use secure defaults for all connections
+- Implement proper authentication
+- Regular credential rotation
+
+## Development Workflow
+
+### Local Development
+- Use docker-compose for full stack
+- Include hot-reload for development
+- Provide make/task commands for common operations
+- Use environment-specific configurations
+
+### Code Quality
+- Run black, isort, mypy on all Python code
+- Use pre-commit hooks
+- Include docstrings for all public functions
+- Write comprehensive README documentation
+
+### Docker & Celery Best Practices
+- CRITICAL: Use `"extra": "ignore"` in all BaseSettings model_config
+- Never use `--reload` flag in Celery worker commands (not supported)
+- Always test container imports before deployment
+- Use environment variables for configuration, not hardcoded values
+- Include health checks in all service containers
+
+## Common Patterns to Follow
+
+### Async Context Managers
+```python
+class SMTPConnection:
+    async def __aenter__(self):
+        await self.connect()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.disconnect()
+```
+
+### Configuration Classes (Pydantic v2)
+```python
+class SMTPConfig(BaseSettings):
+    host: str = Field(default="0.0.0.0", description="SMTP host")
+    port: int = Field(default=1025, description="SMTP port")
+    auth_required: bool = Field(default=False, description="Require auth")
+    
+    model_config = {"env_prefix": "SMTP_", "extra": "ignore"}
+    
+    @field_validator("port", mode="before")
+    @classmethod
+    def validate_port(cls, v):
+        if not 1 <= v <= 65535:
+            raise ValueError("Invalid port range")
+        return v
+```
+
+### Service Classes
+```python
+class TranscriptionService:
+    def __init__(self, config: GoogleConfig):
+        self.client = speech.SpeechClient()
+        self.config = config
+    
+    async def transcribe(self, audio_data: bytes) -> TranscriptionResult:
+        # Implementation with proper error handling
+```
+
+## When Adding New Features
+1. Start with the data model (Pydantic)
+2. Add the service interface
+3. Implement with proper error handling
+4. Add comprehensive tests
+5. Update Docker configuration if needed
+6. Add monitoring/logging
+7. Update documentation
+
+## Code Review Focus Areas
+- Async patterns are used correctly
+- Error handling is comprehensive
+- Configuration is externalized
+- Tests cover edge cases
+- Docker security best practices
+- No secrets in code
+- Proper logging without sensitive data

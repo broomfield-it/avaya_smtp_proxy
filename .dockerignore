@@ -1,0 +1,170 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+ARCHITECTURE.md
+PROJECT_SUMMARY.md
+docs/
+*.md
+!requirements.txt
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+test-results/
+test-reports/
+tests/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Environment files (will be mounted as volumes)
+.env*
+!env.example
+
+# Credentials (will be mounted as volumes)
+credentials/
+*.json
+
+# SSL certificates (will be mounted as volumes)
+certs/
+*.crt
+*.key
+*.pem
+
+# Storage and logs (will be mounted as volumes)
+storage/
+logs/
+data/
+*.log
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Backup files
+backup/
+*.bak
+*.backup
+
+# Docker files (not needed in container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD files
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Local development files
+Makefile
+scripts/
+local/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+
+# Profiling data
+*.prof
+
+# Build and deployment artifacts
+*.tar.gz
+*.zip
+k8s/
+helm/
+
+# Monitoring configuration
+prometheus/
+grafana/
+
+# Local overrides
+docker-compose.local.yml
+.env.override
+
+# Node modules (if any frontend tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.vscode/
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

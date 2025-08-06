@@ -1,0 +1,53 @@
+# Development overrides for docker-compose
+version: '3.8'
+
+services:
+  smtp-proxy:
+    volumes:
+      # Mount source code for development
+      - .:/app
+    environment:
+      - LOG_LEVEL=INFO
+      - DEBUG=true
+    ports:
+      # Expose additional ports for development
+      - "1025:1025"   # SMTP
+      - "8000:8000"   # Health checks
+    command: >
+      sh -c "python health_server.py &
+             python -u main.py"
+
+  celery-worker:
+    volumes:
+      # Mount source code for development
+      - .:/app
+    environment:
+      - LOG_LEVEL=INFO
+    command: >
+      celery -A app.tasks.worker worker
+      --loglevel=INFO
+      --queues=celery,voicemail_processing,transcription,cleanup
+      --hostname=worker@%h
+
+  # Development tools
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: voicemail-proxy-redis-insight
+    ports:
+      - "8001:8001"
+    profiles:
+      - dev-tools
+    networks:
+      - voicemail-network
+
+  # Test SMTP server for debugging
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: voicemail-proxy-mailhog
+    ports:
+      - "1026:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    profiles:
+      - dev-tools
+    networks:
+      - voicemail-network

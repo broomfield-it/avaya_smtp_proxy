@@ -1,0 +1,200 @@
+# AI Development Prompt: SMTP Proxy with Voice Transcription Service
+
+## Project Overview
+Create a production-ready SMTP proxy service that intercepts Avaya voicemail notifications, transcribes attached WAV files using Google Speech-to-Text, and forwards enhanced emails with transcriptions to users. The service must be containerized, scalable, and suitable for on-premise deployment.
+
+## Core Requirements
+
+### 1. SMTP Proxy Server
+- **Technology**: Python with `aiosmtpd` for async SMTP handling
+- **Function**: Act as SMTP server receiving emails from Avaya
+- **Response**: Quick acknowledgment to prevent Avaya timeouts
+- **Processing**: Queue messages immediately for async processing
+
+### 2. Async Task Processing
+- **Queue System**: Use Celery with Redis as broker and result backend
+- **Architecture**: Separate SMTP receiver from heavy processing workers
+- **Storage**: Local filesystem with organized directory structure
+- **Cleanup**: Automatic file cleanup after processing completion
+
+### 3. Google Speech-to-Text Integration
+- **Service**: Google Cloud Speech-to-Text API
+- **Audio Format**: Support WAV files from Avaya
+- **Configuration**: Configurable language, model, and enhancement options
+- **Error Handling**: Graceful fallbacks when transcription fails
+
+### 4. Email Enhancement
+- **Parsing**: Extract WAV attachments from incoming emails
+- **Modification**: Add transcription to email body (plain text and HTML)
+- **Forwarding**: Send enhanced email to original recipients
+- **Preservation**: Maintain original email headers and formatting
+
+## Technical Specifications
+
+### Environment Variables (Required)
+```bash
+# SMTP Configuration
+SMTP_HOST=0.0.0.0
+SMTP_PORT=1025
+SMTP_AUTH_REQUIRED=false
+
+# Outbound Email Server
+OUTBOUND_SMTP_HOST=mail.company.com
+OUTBOUND_SMTP_PORT=587
+OUTBOUND_SMTP_USER=proxy@company.com
+OUTBOUND_SMTP_PASSWORD=secret
+OUTBOUND_SMTP_TLS=true
+
+# Google Cloud
+GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/service-account.json
+GOOGLE_CLOUD_PROJECT=your-project-id
+
+# Celery/Redis
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+# Storage
+STORAGE_PATH=/app/storage
+CLEANUP_AFTER_HOURS=24
+```
+
+### Environment Variables (Optional)
+```bash
+# SMTP Security
+SMTP_TLS_CERT=/app/certs/smtp.crt
+SMTP_TLS_KEY=/app/certs/smtp.key
+SMTP_AUTH_USER=avaya
+SMTP_AUTH_PASSWORD=secret
+
+# Speech-to-Text Configuration
+SPEECH_LANGUAGE_CODE=en-US
+SPEECH_MODEL=telephony
+SPEECH_ENABLE_WORD_TIME_OFFSETS=false
+SPEECH_ENABLE_PROFANITY_FILTER=true
+SPEECH_MAX_ALTERNATIVES=1
+
+# Processing
+MAX_AUDIO_SIZE_MB=50
+WORKER_CONCURRENCY=4
+TASK_MAX_RETRIES=3
+TASK_RETRY_DELAY=60
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+
+# Monitoring
+FLOWER_PORT=5555
+FLOWER_BASIC_AUTH=admin:password
+ENABLE_METRICS=true
+METRICS_PORT=8080
+```
+
+## Container Requirements
+
+### Docker Setup
+- **Base Image**: Python 3.11-slim
+- **Multi-stage Build**: Separate build and runtime stages
+- **Security**: Non-root user, minimal attack surface
+- **Health Checks**: Container health monitoring
+- **Volumes**: Persistent storage for temporary files and credentials
+
+### Docker Compose Stack
+```yaml
+services:
+  smtp-proxy:
+    # Main SMTP receiver
+  celery-worker:
+    # Processing workers (scalable)
+  redis:
+    # Message broker and result backend
+  flower:
+    # Monitoring UI (optional)
+```
+
+## Development & Testing Features
+
+### Local Development
+- **Configuration**: Docker Compose for full local stack
+- **Test SMTP Server**: Built-in test email server for debugging
+- **Mock Services**: Optional Google API mocking for offline development
+- **Hot Reload**: Code changes without container rebuilds
+
+### Testing Capabilities
+- **Unit Tests**: Core functionality testing
+- **Integration Tests**: Full pipeline testing with sample emails
+- **Load Testing**: SMTP server performance validation
+- **Mock Data**: Sample Avaya email fixtures for testing
+
+### Debugging Tools
+- **Structured Logging**: JSON logs with correlation IDs
+- **Health Endpoints**: Service status and readiness checks
+- **Metrics**: Prometheus-compatible metrics
+- **Tracing**: Request tracing through the pipeline
+
+## Code Structure Requirements
+
+### Project Layout
+```
+voicemail-proxy/
+├── app/
+│   ├── smtp/           # SMTP server implementation
+│   ├── tasks/          # Celery task definitions
+│   ├── services/       # Google API, email services
+│   ├── models/         # Data structures
+│   └── utils/          # Helper functions
+├── tests/              # Test suites
+├── docker/             # Container configurations
+├── config/             # Configuration management
+└── scripts/            # Deployment and utility scripts
+```
+
+### Key Components to Implement
+1. **SMTPHandler**: Async SMTP server with email parsing
+2. **TranscriptionService**: Google Speech-to-Text integration
+3. **EmailProcessor**: Email modification and forwarding
+4. **FileManager**: Storage and cleanup operations
+5. **WorkerTasks**: Celery task definitions
+6. **ConfigManager**: Environment variable handling
+7. **HealthChecks**: Service monitoring endpoints
+
+## Scalability Considerations
+- **Horizontal Scaling**: Multiple worker containers
+- **Resource Limits**: Memory and CPU constraints for containers
+- **Queue Management**: Prevent queue buildup and memory issues
+- **Connection Pooling**: Efficient SMTP and API connections
+- **Circuit Breakers**: Resilience against service failures
+
+## Error Handling & Reliability
+- **Graceful Degradation**: Service continues when transcription fails
+- **Retry Logic**: Exponential backoff for failed tasks
+- **Dead Letter Handling**: Failed message investigation
+- **Transaction Safety**: Ensure emails aren't lost during processing
+- **Monitoring Alerts**: Critical failure notifications
+
+## Security Requirements
+- **Secrets Management**: Secure handling of API keys and passwords
+- **Input Validation**: Protect against malicious email inputs
+- **File Handling**: Safe temporary file operations
+- **Network Security**: TLS encryption for SMTP and API calls
+- **Container Security**: Minimal privileges and attack surface
+
+## Deliverables Expected
+
+1. **Complete Python Application** with all components
+2. **Docker Configuration** with multi-service setup
+3. **Documentation** including deployment and configuration guides
+4. **Testing Suite** with unit and integration tests
+5. **Environment Templates** for easy deployment setup
+6. **Troubleshooting Guide** for common issues
+7. **Performance Tuning** recommendations
+
+## Success Criteria
+- Handles concurrent SMTP connections without blocking
+- Processes voicemail transcriptions reliably
+- Scales horizontally with additional worker containers
+- Provides comprehensive logging and monitoring
+- Runs successfully in Docker on-premise environment
+- Includes robust error handling and recovery mechanisms
+
+Build a production-ready service that can handle enterprise voicemail volumes while maintaining high reliability and observability.
