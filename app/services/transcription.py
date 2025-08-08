@@ -206,7 +206,7 @@ class TranscriptionService(LoggerMixin):
 
         # Create configuration
         config = speech.RecognitionConfig(
-            encoding=encoding,
+            # encoding=encoding,
             # sample_rate_hertz=16000,  # Standard rate for speech recognition
             language_code=self.config.language_code,
             model=self.config.model,

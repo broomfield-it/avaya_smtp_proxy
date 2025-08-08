@@ -130,8 +130,6 @@ services:
       celery -A app.tasks.worker flower
       --port=5555
       --basic-auth=${FLOWER_BASIC_AUTH:-admin:admin}
-    profiles:
-      - monitoring
     networks:
       - voicemail-network
 
